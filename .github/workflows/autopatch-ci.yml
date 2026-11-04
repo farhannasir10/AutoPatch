@@ -1,0 +1,64 @@
+name: AutoPatch CI bridge
+
+# Demonstrates the enterprise shape: tests fail → POST failure log to AutoPatch.
+# For a live local demo, point AUTOPATCH_URL at a tunnel (cloudflared/ngrok) to :8000
+# or run scripts/simulate-ci.ps1 on a self-hosted / local machine.
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "samples/nextjs-cart/**"
+      - ".github/workflows/autopatch-ci.yml"
+  pull_request:
+    paths:
+      - "samples/nextjs-cart/**"
+
+jobs:
+  cart-tests:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: samples/nextjs-cart
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: samples/nextjs-cart/package.json
+
+      - name: Install
+        run: npm install --no-fund --no-audit
+
+      - name: Jest
+        id: jest
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          npm test 2>&1 | tee /tmp/jest.log
+          exit ${PIPESTATUS[0]}
+
+      - name: Upload failure log
+        if: steps.jest.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: jest-failure-log
+          path: /tmp/jest.log
+
+      - name: Notify AutoPatch
+        if: steps.jest.outcome == 'failure' && env.AUTOPATCH_URL != ''
+        env:
+          AUTOPATCH_URL: ${{ secrets.AUTOPATCH_URL }}
+        run: |
+          ERROR_LOG=$(python -c 'import json,pathlib; print(json.dumps(pathlib.Path("/tmp/jest.log").read_text(encoding="utf-8")))')
+          curl -fsS -X POST "$AUTOPATCH_URL/api/ci/failures" \
+            -H "Content-Type: application/json" \
+            -d "{\"fixture_id\":\"nextjs_pricing\",\"error_log\":$ERROR_LOG,\"repo\":\"${{ github.repository }}\",\"branch\":\"${{ github.ref_name }}\",\"commit_sha\":\"${{ github.sha }}\"}"
+
+      - name: Fail job if tests failed
+        if: steps.jest.outcome == 'failure'
+        run: |
+          echo "Tests failed — AutoPatch notified (if AUTOPATCH_URL secret was set)."
+          exit 1

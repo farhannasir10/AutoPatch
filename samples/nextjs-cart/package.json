@@ -1,0 +1,15 @@
+{
+  "name": "nextjs-cart-sample",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Tiny Next-style cart pricing module — intentionally buggy for AutoPatch demos",
+  "scripts": {
+    "test": "jest --colors=false"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.14",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.2.5",
+    "typescript": "^5.7.2"
+  }
+}

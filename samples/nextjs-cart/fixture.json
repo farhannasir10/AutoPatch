@@ -1,0 +1,11 @@
+{
+  "id": "nextjs_pricing",
+  "label": "Next.js Cart Pricing",
+  "description": "CI-style sample: percent discount applied without /100 — Jest fails in a Next-like lib/",
+  "runtime": "node",
+  "source_file": "lib/pricing.ts",
+  "test_file": "__tests__/pricing.test.ts",
+  "test_command": ["npm", "test"],
+  "language": "typescript",
+  "sample_root": "samples/nextjs-cart"
+}
