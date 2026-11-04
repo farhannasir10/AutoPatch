@@ -157,7 +157,8 @@ Local simulation against the sample cart project:
 .\scripts\simulate-ci.ps1
 ```
 
-Reference workflow: [`.github/workflows/autopatch-ci.yml`](.github/workflows/autopatch-ci.yml)
+Reference workflow: [`.github/workflows/autopatch-ci.yml`](.github/workflows/autopatch-ci.yml)  
+(Manual `workflow_dispatch` only — keeps `main` green; the cart sample stays intentionally failing for local demos.)
 
 ## API reference
 

@@ -1,18 +1,12 @@
 name: AutoPatch CI bridge
 
-# Demonstrates the enterprise shape: tests fail → POST failure log to AutoPatch.
-# For a live local demo, point AUTOPATCH_URL at a tunnel (cloudflared/ngrok) to :8000
-# or run scripts/simulate-ci.ps1 on a self-hosted / local machine.
+# Manual-only: keeps main green while preserving the intentional failing
+# cart sample for demos. Run from Actions → "AutoPatch CI bridge" → Run workflow.
+# Optional: set secret AUTOPATCH_URL to POST failure logs to a live AutoPatch API.
+# Local equivalent: scripts/simulate-ci.ps1
 
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - "samples/nextjs-cart/**"
-      - ".github/workflows/autopatch-ci.yml"
-  pull_request:
-    paths:
-      - "samples/nextjs-cart/**"
 
 jobs:
   cart-tests:
@@ -57,8 +51,9 @@ jobs:
             -H "Content-Type: application/json" \
             -d "{\"fixture_id\":\"nextjs_pricing\",\"error_log\":$ERROR_LOG,\"repo\":\"${{ github.repository }}\",\"branch\":\"${{ github.ref_name }}\",\"commit_sha\":\"${{ github.sha }}\"}"
 
-      - name: Fail job if tests failed
+      - name: Summarize
         if: steps.jest.outcome == 'failure'
         run: |
-          echo "Tests failed — AutoPatch notified (if AUTOPATCH_URL secret was set)."
-          exit 1
+          echo "Jest failed as expected for the intentional nextjs-cart defect."
+          echo "Dashboard demo is unchanged — use Start remediation locally."
+          echo "Artifact jest-failure-log contains the CI-style failure output."
