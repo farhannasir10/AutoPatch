@@ -1,0 +1,56 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg-0: #05080d;
+  --bg-1: #0b1220;
+  --ink: #e8eef7;
+  --muted: #8b9bb4;
+  --line: rgba(148, 163, 184, 0.22);
+  --accent: #34d399;
+  --warn: #f59e0b;
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  color: var(--ink);
+  background:
+    radial-gradient(1200px 600px at 10% -10%, rgba(16, 185, 129, 0.12), transparent 55%),
+    radial-gradient(900px 500px at 90% 0%, rgba(14, 165, 233, 0.1), transparent 50%),
+    linear-gradient(180deg, #070b12 0%, #05080d 45%, #081018 100%);
+  background-attachment: fixed;
+  font-family: var(--font-plex), "Segoe UI", sans-serif;
+}
+
+.font-display {
+  font-family: var(--font-display), var(--font-plex), sans-serif;
+  letter-spacing: -0.02em;
+}
+
+.font-mono {
+  font-family: var(--font-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* subtle grid so the console feels like an ops surface, not a blank dark page */
+.app-shell {
+  background-image:
+    linear-gradient(rgba(148, 163, 184, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148, 163, 184, 0.04) 1px, transparent 1px);
+  background-size: 48px 48px;
+}
