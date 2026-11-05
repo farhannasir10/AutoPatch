@@ -1,74 +1,80 @@
 # AutoPatch
 
+> Autonomous, sandboxed test remediation control plane for CI pipelines.
+
 AutoPatch is an autonomous code remediation service for failing automated tests. It ingests a failing implementation and its associated test suite, proposes a patch with a language model, validates the change inside an isolated Docker sandbox, and requires explicit human approval before committing or opening a pull request.
 
-The system is designed for CI/CD integration: when a pipeline reports a test failure, AutoPatch can take over the remediation loop instead of leaving the failure idle until a developer picks it up.
+The system is designed for CI/CD integration: when a pipeline reports a test failure, AutoPatch takes over the remediation loop instead of leaving the failure idle until a developer context-switches to triage it.
+
+---
 
 ## Capabilities
 
-- Stateful remediation workflow (ingest → execute tests → patch → re-test → evaluate)
-- Network-isolated Docker execution for untrusted generated code
-- Python (pytest) and Node.js (Jest) runtimes
-- Live run streaming over Server-Sent Events
-- Side-by-side patch review in the dashboard
-- Human-in-the-loop approval before persistence
-- Optional GitHub pull request creation on approve
-- CI failure ingestion endpoint for pipeline webhooks
+- **Stateful remediation workflow:** Ingest → Execute Tests → Patch → Re-test → Evaluate
+- **Network-isolated Docker execution:** Zero internet egress (`network_disabled = True`) for untrusted generated code
+- **Multi-runtime support:** Python (`pytest`) and Node.js (`Jest`)
+- **Real-time telemetry:** Live run streaming over Server-Sent Events (SSE)
+- **Monaco diff review:** Side-by-side patch inspection in the dashboard
+- **Human-in-the-Loop (HITL):** Explicit human gate before local commits or GitHub PR generation
+- **CI failure webhook:** Direct ingestion endpoint for CI/CD runners
+
+---
 
 ## Architecture
 
-```
-CI failure / registered fixture
-            │
-            ▼
-     FastAPI control plane
-            │
-            ▼
-        LangGraph cycle
-   ingest → sandbox → evaluate
-              ↺ patch (on failure)
-            │
-            ▼ (tests pass)
-     approval breakpoint
-            │
-     approve → commit / PR
-     reject  → discard
+```mermaid
+flowchart LR
+    CI[CI Failure / Registered Fixture] -->|POST /api/ci/failures| API[FastAPI Control Plane]
+    API --> RM[Run Manager]
+    RM --> LG[LangGraph Cycle]
+    LG --> DOC[Docker Sandbox Network Isolated]
+    LG --> GEM[Gemini Patch Generator]
+    LG --> HITL{Human Approval Gate}
+    HITL -->|Approve| GIT[Local Commit / GitHub PR]
+    HITL -->|Reject| DIS[Discard Patch]
+    API -->|SSE Events| UI[Next.js Monaco Dashboard]
+    UI -->|Decision| API
 ```
 
-| Component | Technology |
-|-----------|------------|
-| Model | Google Gemini (configurable via env) |
-| Orchestration | LangGraph with checkpointed interrupts |
-| Sandbox | Docker (`autopatch-sandbox`, `autopatch-node-sandbox`) |
-| API | FastAPI, SSE |
-| Dashboard | Next.js, Monaco diff viewer |
-| VCS | Local git commit; optional GitHub Pulls API |
+| Component | Technology | Rationale |
+| --- | --- | --- |
+| **Model** | Google Gemini Flash / Flash-Lite | Fast API tier with structured patch generation |
+| **Orchestration** | LangGraph with Checkpointed Interrupts | Pause/resume execution without blocking threads |
+| **Sandbox** | Docker Engine API (`network_disabled: true`) | Strict isolation; prevents credential exfiltration or rogue loops |
+| **API Layer** | FastAPI, SSE (Server-Sent Events) | Lightweight, unidirectional streaming without WebSocket overhead |
+| **Dashboard** | Next.js, Monaco Diff Viewer | Full-fidelity side-by-side git diff review and state-machine visualization |
+| **VCS Integration** | Git CLI + GitHub Pulls REST API | Automated branch generation and human-authorized PR authoring |
 
-Remediation is intentionally scoped. The agent receives the failing source file, related tests, and the failure log—not an entire monorepo—so patches stay reviewable and sandboxed runs stay reproducible.
+---
 
-## Repository layout
+## Repository Layout
 
-```
+```text
 Autopatch/
-├── backend/           # API, LangGraph workflow, sandbox tooling
-├── frontend/          # Operations dashboard
-├── fixtures/          # Python remediation fixtures
-├── samples/           # Node/Next-style sample project
-├── demo/              # Operational walkthrough
-├── scripts/           # Local CI simulation helpers
-└── .github/workflows/ # Example CI bridge workflow
+├── backend/            # FastAPI control plane, LangGraph state machine, Docker isolation
+├── frontend/           # Next.js operations dashboard, Monaco diff viewer, SSE client
+├── docs/               # Technical case study and architecture documentation
+├── fixtures/           # Python test failure fixtures
+├── samples/            # Node / Next.js cart sample project (intentionally failing for demo)
+├── demo/               # Operational walkthrough and demo guide
+├── scripts/            # Local CI simulation and development automation
+└── .github/workflows/  # CI bridge workflow (workflow_dispatch)
 ```
+
+---
 
 ## Prerequisites
 
-- Python 3.11+
-- Node.js 20+
-- Docker Engine / Docker Desktop
-- A Google AI Studio API key (`GEMINI_API_KEY`)
+- **Python 3.11+**
+- **Node.js 20+**
+- **Docker Engine / Docker Desktop**
+- **Google AI Studio API Key** (`GEMINI_API_KEY`)
 
-## Setup
+---
 
-### Backend
+## Setup & Running
+
+### 1. Backend
 
 ```bash
 cd backend
@@ -80,27 +86,19 @@ python -m venv .venv
 # source .venv/bin/activate
 
 pip install -r requirements.txt
-cp .env.example .env   # Windows: copy .env.example .env
+cp .env.example .env
 ```
 
-Configure at minimum:
+Configure your `.env`:
 
 ```env
-GEMINI_API_KEY=...
+GEMINI_API_KEY=your_api_key_here
 GEMINI_MODEL=gemini-flash-lite-latest
 DOCKER_IMAGE=autopatch-sandbox:latest
 DOCKER_NODE_IMAGE=autopatch-node-sandbox:latest
 ```
 
-Optional GitHub integration (enables PR creation on approve):
-
-```env
-GITHUB_TOKEN=...
-GITHUB_REPOSITORY=owner/repo
-GITHUB_PR_BASE=main
-```
-
-Build sandbox images:
+Build the sandbox images:
 
 ```bash
 docker build -t autopatch-sandbox:latest .\sandbox
@@ -113,7 +111,7 @@ Start the API:
 uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
-### Frontend
+### 2. Frontend
 
 ```bash
 cd frontend
@@ -121,9 +119,10 @@ npm install
 npx next dev -p 3000
 ```
 
-Dashboard: [http://localhost:3000](http://localhost:3000)
+- **Dashboard:** [http://localhost:3000](http://localhost:3000)
+- **API Health:** [http://127.0.0.1:8000/api/health](http://127.0.0.1:8000/api/health)
 
-Health check: [http://127.0.0.1:8000/api/health](http://127.0.0.1:8000/api/health)
+---
 
 ## Usage
 
@@ -135,8 +134,6 @@ Health check: [http://127.0.0.1:8000/api/health](http://127.0.0.1:8000/api/healt
 4. Approve to commit (and open a PR when GitHub env vars are configured), or reject to discard
 
 ### CI bridge
-
-Pipelines can submit failure context directly:
 
 ```http
 POST /api/ci/failures
@@ -151,7 +148,7 @@ Content-Type: application/json
 }
 ```
 
-Local simulation against the sample cart project:
+Local simulation:
 
 ```powershell
 .\scripts\simulate-ci.ps1
@@ -160,10 +157,12 @@ Local simulation against the sample cart project:
 Reference workflow: [`.github/workflows/autopatch-ci.yml`](.github/workflows/autopatch-ci.yml)  
 (Manual `workflow_dispatch` only — keeps `main` green; the cart sample stays intentionally failing for local demos.)
 
-## API reference
+---
+
+## API Reference
 
 | Method | Path | Description |
-|--------|------|-------------|
+| --- | --- | --- |
 | `GET` | `/api/health` | Service health and key configuration status |
 | `GET` | `/api/fixtures` | Registered remediation targets |
 | `POST` | `/api/runs` | Start a run from a fixture id |
@@ -172,10 +171,12 @@ Reference workflow: [`.github/workflows/autopatch-ci.yml`](.github/workflows/aut
 | `GET` | `/api/runs/{id}/events` | SSE event stream |
 | `POST` | `/api/runs/{id}/decision` | `{ "decision": "approve" \| "reject" }` |
 
-## Registered fixtures
+---
+
+## Registered Fixtures
 
 | ID | Runtime | Description |
-|----|---------|-------------|
+| --- | --- | --- |
 | `nextjs_pricing` | Node / Jest | Percent discount applied without scaling by 100 |
 | `off_by_one` | Python / pytest | Inclusive sum off-by-one in `range` |
 | `wrong_return` | Python / pytest | Palindrome check compares cleaned vs raw input |
@@ -183,18 +184,22 @@ Reference workflow: [`.github/workflows/autopatch-ci.yml`](.github/workflows/aut
 | `type_coercion` | Python / pytest | Returns strings where ints are expected |
 | `fizzbuzz_bug` | Python / pytest | `% 15` checked after `% 3` / `% 5` |
 
-To attach an additional codebase, register a fixture/sample with a `fixture.json` (source file, test file, runtime, test command), ensure the matching sandbox image contains required dependencies, then point CI at `/api/ci/failures` with that `fixture_id`.
+---
 
-## Safety controls
+## Safety & Governance Controls
 
-- Sandbox containers run with networking disabled
-- CPU, memory, and execution timeouts are enforced
-- Workspace content is overlaid into ephemeral containers
-- Persistence (commit / PR) occurs only after explicit approval
+1. **Deterministic Exit Codes (`Evaluate ≠ LLM`):** Routing relies strictly on process exit codes (0 vs non-zero) and bounded retry budgets, preventing hallucinated passes.
+2. **Untrusted Code Isolation:** Containers run with `network_disabled = True`, hard CPU caps, memory limits, and execution timeouts.
+3. **No Host Bind Mounts:** Ephemeral workspaces use `put_archive` tar streams into containers to eliminate host pollution.
+4. **Mandatory Approval Gate:** Code cannot be merged or committed without explicit operator approval in the dashboard.
 
-## Documentation
+---
 
-- Operational walkthrough: [`demo/DEMO.md`](demo/DEMO.md)
+## Technical Case Study
+
+For in-depth systems design, threat model, and architectural trade-offs, read the [Technical Case Study](docs/CASE_STUDY.md).
+
+---
 
 ## License
 
